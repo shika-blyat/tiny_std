@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::Index;
 use std::ptr;
+use crate::iter::Iter;
 
 pub struct Vector<T: Sized> {
     layout: Layout,
@@ -11,6 +12,7 @@ pub struct Vector<T: Sized> {
     capacity: usize,
     length: usize,
     phantom: PhantomData<T>,
+    iter_count: usize,
 }
 
 impl<T: Sized> Vector<T> {
@@ -25,7 +27,25 @@ impl<T: Sized> Vector<T> {
             capacity,
             length,
             phantom: PhantomData,
+            iter_count: 0,
         }
+    }
+    pub fn append(&mut self, other: &mut Vector<T>){
+        for i in other.iter(){
+            self.push(i);
+        }
+        other.clear();
+    }
+    #[inline]
+    pub fn as_ptr(&self) -> *const T{
+        self.pointer as *const T
+    }
+    pub fn iter(&self) -> Iter<T> {
+        let start = self.as_ptr();
+        Iter::new(start, self.length)
+    }
+    pub fn clear(&mut self) {
+        self.length = 0;
     }
     pub fn push(&mut self, v: T) {
         if self.capacity <= self.length {
@@ -44,6 +64,7 @@ impl<T: Sized> Vector<T> {
         self.length -= 1;
         unsafe { Some(ptr::read(self.get_index(self.length))) }
     }
+    #[inline]
     fn get_index(&self, index: usize) -> *mut T {
         (self.pointer as usize + (size_of::<T>() as usize * index)) as *mut T
     }
@@ -55,14 +76,42 @@ impl<T: Sized> Vector<T> {
         }
         self.length -= 1;
     }
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.length
     }
+    #[inline]
     fn realloc(&mut self) {
         unsafe {
             self.capacity *= 2;
             self.pointer = realloc(self.pointer, self.layout, self.capacity);
         }
+    }
+}
+
+impl<T> IntoIterator for &Vector<T> {
+    type Item = T;
+    type IntoIter = Iter<T>;
+
+    fn into_iter(self) -> Iter<T> {
+        self.iter()
+    }
+}
+
+impl<T> IntoIterator for &mut Vector<T> {
+    type Item = T;
+    type IntoIter = Iter<T>;
+
+    fn into_iter(self) -> Iter<T> {
+        self.iter()
+    }
+}
+impl<T> IntoIterator for Vector<T> {
+    type Item = T;
+    type IntoIter = Iter<T>;
+
+    #[inline]
+    fn into_iter(self) -> Iter<T> {
+            self.iter()
     }
 }
 impl<T: Sized + fmt::Display> fmt::Display for Vector<T> {

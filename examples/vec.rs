@@ -4,7 +4,7 @@ fn main() {
     vec.push(15);
     vec.push(17);
     vec.push(19);
-    println!("{}", vec);
-    vec.remove(1);
-    println!("{}", vec);
+	for i in vec.iter(){
+		println!("{}", i);
+	}
 }
