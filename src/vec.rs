@@ -5,14 +5,15 @@ use std::mem::size_of;
 use std::ops::Index;
 use std::ptr;
 use crate::iter::Iter;
+use std::slice;
 
+#[derive(PartialEq)]
 pub struct Vector<T: Sized> {
     layout: Layout,
     pointer: *mut u8,
     capacity: usize,
     length: usize,
     phantom: PhantomData<T>,
-    iter_count: usize,
 }
 
 impl<T: Sized> Vector<T> {
@@ -27,7 +28,6 @@ impl<T: Sized> Vector<T> {
             capacity,
             length,
             phantom: PhantomData,
-            iter_count: 0,
         }
     }
     pub fn append(&mut self, other: &mut Vector<T>){
@@ -37,16 +37,50 @@ impl<T: Sized> Vector<T> {
         other.clear();
     }
     #[inline]
+    pub fn as_mut_ptr(&mut self) -> *mut T{
+        self.pointer as *mut T
+    }
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        unsafe{
+            slice::from_raw_parts_mut(self.as_mut_ptr(), self.len())
+        }
+    }
+    #[inline]
     pub fn as_ptr(&self) -> *const T{
         self.pointer as *const T
+    }
+    #[inline]
+    pub fn as_slice(&self) -> &[T] {
+        unsafe{
+            slice::from_raw_parts(self.as_ptr(), self.len())
+        }
+    }
+    pub fn capacity(&self) -> usize{
+        self.capacity / size_of::<T>()
+    }
+    pub fn clear(&mut self) {
+        self.length = 0;
+    }
+    pub fn dedup_by<F>(&mut self, same_bucket: F) 
+    where
+        F: FnMut(&mut T, &mut T) -> bool{
+        let mut last;
+        for i in self{
+            last = i;
+        }
+    } 
+    pub fn reserve(&mut self, add: usize){
+        if self.capacity > add {
+            return
+        }
+        self.realloc_exact(add);
     }
     pub fn iter(&self) -> Iter<T> {
         let start = self.as_ptr();
         Iter::new(start, self.length)
     }
-    pub fn clear(&mut self) {
-        self.length = 0;
-    }
+
     pub fn push(&mut self, v: T) {
         if self.capacity <= self.length {
             self.realloc();
@@ -85,6 +119,26 @@ impl<T: Sized> Vector<T> {
             self.capacity *= 2;
             self.pointer = realloc(self.pointer, self.layout, self.capacity);
         }
+    }
+    #[inline]
+    fn realloc_exact(&mut self, add: usize) {
+        unsafe {
+            self.capacity += add;
+            self.pointer = realloc(self.pointer, self.layout, self.capacity);
+        }
+    }
+    pub fn from_vec(vec: Vec<T>) -> Vector<T> {
+        let mut vector = Vector::new();
+        for i in vec{
+            vector.push(i);
+        }
+        vector
+    }
+}
+
+impl<T: Clone> From<&[T]> for Vector<T> {
+    fn from(s: &[T]) -> Vector<T> {
+        Vector::from_vec(s.to_vec())
     }
 }
 
